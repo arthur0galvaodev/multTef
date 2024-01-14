@@ -11,12 +11,12 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("MultiTef")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("multiTefTest")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
 [assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2a3c97fecb17df74a8e02366a5b68727a94e341f")]
-[assembly: System.Reflection.AssemblyProductAttribute("MultiTef")]
-[assembly: System.Reflection.AssemblyTitleAttribute("MultiTef")]
+[assembly: System.Reflection.AssemblyProductAttribute("multiTefTest")]
+[assembly: System.Reflection.AssemblyTitleAttribute("multiTefTest")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 
 // Gerado pela classe WriteCodeFragment do MSBuild.

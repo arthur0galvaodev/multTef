@@ -13,10 +13,11 @@ using System.Security;
 using System.Security.Cryptography.Xml;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 
-namespace MultiTef.TEF_GetPay
+namespace MultiTef.TEF_GetCard
 {
-    public class GetPay
+    public class GetCardPassivo
     {
         //Anotações 
 
@@ -28,43 +29,105 @@ namespace MultiTef.TEF_GetPay
         // CNF      - USA       -           - Confirma a última Transação realizada
         // NCN      - USA       -           - Desfaz a última transação realizada
         StatusVenda statusVenda = new StatusVenda();
-        RespostaVenda respostaVenda = new RespostaVenda();
+        Pagamento dadosPagamento = new Pagamento();
+        StatusConfirmacao statusConfirmacao = new StatusConfirmacao();
+        RespostaConfirmacao respostaConfirmacao =  new RespostaConfirmacao();
+        string menssagemErro = "";
 
         public JsonResult RealizarVenda(ModeloPagamento pagamento)
         {
             //Realizar Venda
             //1º Criar conteudo do arquivo e Criar arquivo na pasta
-            bool ArquivoIniciar = CriarArvivoComunicacao(pagamento);
+            bool ArquivoIniciar = CriarArvivoComunicacao(pagamento); //TODO: antes de criar um arquivo novo verificar se existe um anterior, se existir excluir ele antes
             //2º Ler arquivo de retorno e Validar retorno
             //3º Ler arquivo de Resposta
             if (ArquivoIniciar)
-            {                
-                bool ArquivoRetorno = LerArquivoRetorno(pagamento.CaminhoArquivo);
-                if (ArquivoRetorno)
+            {
+                if (VerificarExisteArquivo(pagamento, 10))
                 {
-                    //4º Confirmar Pagamento
-                    if (ValidarRespota(pagamento) == "ok")
+                    bool ArquivoRetorno = LerArquivoRetorno(pagamento.CaminhoArquivo);
+                    if (ArquivoRetorno)
                     {
-                        //5º Criar Arquivo de Confirmação de Venda
-                        //6º Ler Arquivo de Status de Venda
-                        ConfirmarPagamento(pagamento);
+                        //4º Confirmar Pagamento
+                        if (ValidarRespota(pagamento) == true) //TODO: qualquer erro daqui para frente tem que cancelar ou desfazer
+                        {
+                            //5º Criar Arquivo de Confirmação de Venda
+                            //6º Ler Arquivo de Status de Venda
+                            if (ConfirmarPagamento(pagamento))
+                            {
+                                //Ler Arquivo
+                                if (VerificarExisteArquivo(pagamento, 3))
+                                {
+                                    if (LerArquivoConfirmacao(pagamento.CaminhoArquivo))
+                                    {//Validar Resposta
+                                        if (ValidarConfirmacao(pagamento) == "ok")
+                                        {
+                                            //7º Retonar dados da venda para o sistema
+                                            dadosPagamento.Erro = "0000"; 
+                                            return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
+                                        }
+                                        else
+                                        {
+                                            //TODO: Implementar Erro
+                                            dadosPagamento.MensagemOperador = menssagemErro;
+                                            dadosPagamento.Erro = "0008";
+                                            return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
+                                        }
+                                    }
+                                    else
+                                    {
+                                        //TODO: Implementar Erro
+                                        dadosPagamento.MensagemOperador = menssagemErro;
+                                        dadosPagamento.Erro = "0007";
+                                        return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
+                                    }
+                                }
+                                else
+                                {
+                                    //TODO: Implementar Erro
+                                    dadosPagamento.MensagemOperador = menssagemErro;
+                                    dadosPagamento.Erro = "0006";
+                                    return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
+                                }                                    
+                            }
+                            else
+                            {
+                                //TODO: Implementar Erro
+                                dadosPagamento.MensagemOperador = menssagemErro;
+                                dadosPagamento.Erro = "0005";
+                                return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
+                            }
+                        }
+                        else
+                        {
+                            //TODO: Implementar Erro
+                            dadosPagamento.MensagemOperador = menssagemErro;
+                            dadosPagamento.Erro = "0004";
+                            return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
+                        }
                     }
                     else
                     {
-                        //TODO: Implementar Erro
-                        return new JsonResult("");
+                        //Erro ao ler arquivo de resposta
+                        dadosPagamento.MensagemOperador = menssagemErro;
+                        dadosPagamento.Erro = "0003";
+                        return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
                     }
                 }
-            }else {
-                //TODO: Implementar Erro
-                return new JsonResult("");
-            }
-            
-            
-            
-            //7º Retonar dados da venda para o sistema
+                else
+                {
+                    //Sem Resposta do arquivo de pagamento - Tempo limite atingido
+                    dadosPagamento.MensagemOperador = menssagemErro;
+                    dadosPagamento.Erro = "0002";
+                    return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
+                }
 
-            return new JsonResult ("");
+                
+            }else {
+                dadosPagamento.MensagemOperador = "Erro ao criar o arquivo, Verificar caminho ou autorização da pasta!";
+                dadosPagamento.Erro = "0001";
+                return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
+            }
         }
 
         private bool CriarArvivoComunicacao(ModeloPagamento pagamento)
@@ -76,12 +139,13 @@ namespace MultiTef.TEF_GetPay
 
                 if (operacaoTef > 0)
                 {
+
                     var conteudoArquivo = CriarConteudoSolicitacaoPagamento((int)pagamento.NumeroDoc,
                                                                                 (int)pagamento.DocumentoFiscal,
                                                                                 operacaoTef,
                                                                                 (int)pagamento.ValorTotal,
-                                                                                (int)pagamento.TipoParcelamento,
-                                                                                (int)pagamento.QtdParcelas,
+                                                                                Convert.ToInt32((pagamento.TipoParcelamento ?? 0)),
+                                                                                Convert.ToInt32((pagamento.QtdParcelas ?? 0)),
                                                                                 pagamento.NomeSoftHouse,
                                                                                 pagamento.NomeDaAutomacao,
                                                                                 pagamento.VersaoDeAutomacao,
@@ -106,7 +170,39 @@ namespace MultiTef.TEF_GetPay
             }
 
         }
-        
+        private bool VerificarExisteArquivo(ModeloPagamento pagamento, int minutos)
+        {
+            try
+            {
+
+                string caminho = pagamento.CaminhoArquivo + "/Resp";
+                string nomeArquivo = "intpos.001";
+                TimeSpan tempoLimite = TimeSpan.FromMinutes(minutos);
+                DateTime tempoInicio = DateTime.Now;
+                while (DateTime.Now - tempoInicio < tempoLimite)
+                {
+                    string caminhoCompleto = Path.Combine(caminho, nomeArquivo);
+
+                    if (System.IO.File.Exists(caminhoCompleto))
+                    {
+                        // Arquivo encontrado
+                        return true;
+                    }
+
+                    // Aguardar um curto período antes de verificar novamente
+                    Thread.Sleep(1000); // Aguarda 1 segundo
+                }
+
+                // Tempo limite atingido, o arquivo não foi encontrado
+                menssagemErro = "Tempo limite atingido, resposta não foi encontrada!";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                menssagemErro = "Erro: Sem resposta " + ex.Message;
+                return false;
+            }
+        }
         public bool LerArquivoRetorno(string caminhoArquivo)
         {
             try
@@ -120,23 +216,68 @@ namespace MultiTef.TEF_GetPay
                 };
                 ArquivoTXT arquivo = new ArquivoTXT();
                 ArquivoStatusVenda.Conteudo = arquivo.LerArquivo(ArquivoStatusVenda);
-                ArquivoTexto ArquivoRespostaVenda = new ArquivoTexto
+                ArquivoTexto ArquivodadosPagamento = new ArquivoTexto
                 {
                     NomeArquivo = "intpos",
                     CaminhoArquivo = caminhoArquivo + "/Resp",
                     ExtensaoArquivo = "001",
                 };
-                ArquivoRespostaVenda.Conteudo = arquivo.LerArquivo(ArquivoRespostaVenda);
+                ArquivodadosPagamento.Conteudo = arquivo.LerArquivo(ArquivodadosPagamento);
 
-                if (ConverterRespostaVenda(ArquivoStatusVenda, ArquivoRespostaVenda))
+                if (ConverterdadosPagamento(ArquivoStatusVenda, ArquivodadosPagamento))
                 {
                     return true;
                 }
+                else
+                {
+                    menssagemErro = "Erro ao ler arquivo de resposta!";
+                    return false;
+                }
+            }
+            catch (Exception ex) {
+                menssagemErro = "Erro ao ler arquivo de resposta!";
                 return false;
             }
-            catch (Exception ex) { 
+        }
+        private bool ValidarRespota(ModeloPagamento pagamento)
+        {
+            try
+            {
+                //Verificar status da resposta bate com o valor Identificação Com o Numero do Documento
+                int identificacaoStatus = Convert.ToInt32(statusVenda.Identificacao);
+                int identificacaoResposta = Convert.ToInt32(dadosPagamento.Identificacao);
+                if (pagamento.NumeroDoc == identificacaoStatus && identificacaoResposta == identificacaoStatus)
+                {
+                    //TODO: Implementar verificação:
+                    //Analisar mais opções a ser implementados
+                    if(statusVenda.Comando != "CRT")
+                    {
+                        menssagemErro = "Codigo de comando invalido!";
+                        return false;
+                    }
+                    if(dadosPagamento.Comando != "CRT")
+                    {
+                        menssagemErro = "Codigo de comando invalido!";
+                        return false;
+                    }
+                    if((statusVenda.Identificacao != Convert.ToString(pagamento.NumeroDoc))||( dadosPagamento.Identificacao != Convert.ToString(pagamento.NumeroDoc)))
+                    {
+                        menssagemErro = "Codigo de Identificação invalido!\n"+dadosPagamento.MensagemOperador;
+                        return false;
+                    }
+                    return true;
+                }
+                else
+                {
+                    //TODO Implementar
+                    return false;
+                }
+            }
+            catch (Exception ex) {
+                menssagemErro = "Erro validação do arquivo!";
                 return false;
             }
+            
         }
         private int VarificarOperacaoTef(TipoTransacaoTef tipoTransacaoTef)
         {
@@ -221,19 +362,19 @@ namespace MultiTef.TEF_GetPay
             Version versao = Assembly.GetExecutingAssembly().GetName().Version;
             string versaoSistema = versao.ToString();
 
-            conteudo = "000-000 = CRT\r" +            //Comando - 000-000 = CRT - Realiza uma transação de venda
+            conteudo = "000-000 = CRT\r\n" +            //Comando - 000-000 = CRT - Realiza uma transação de venda
 
-            "001-000 = " + indentificacao + "\r" +    //Número de controle gerado pela Automação Comercial,
+            "001-000 = " + indentificacao + "\r\n" +    //Número de controle gerado pela Automação Comercial,
                                                       //devendo o valor ser diferente para cada nova operação de
                                                       //TEF.É ecoado pelo Gerenciador Padrão nos arquivos de
                                                       //status e de resposta, e deve ser consistido pelo Automação
                                                       //Comercial.
 
-            "002-000 = " + documentoFiscal + "\r" +   //Número do documento fiscal ao qual a operação de TEF está
+            "002-000 = " + documentoFiscal + "\r\n" +   //Número do documento fiscal ao qual a operação de TEF está
                                                       //vinculada.Caso seja usada uma Impressora Fiscal, o
                                                       //preenchimento deste campo é obrigatório para transações de venda.
 
-            "003-000 = " + valorTotal + "\r" +        //Valor total da operação, em centavos da moeda informada
+            "003-000 = " + valorTotal + "\r\n" +        //Valor total da operação, em centavos da moeda informada
                                                       //no campo 004‐000, incluindo todas as taxas cobradas do
                                                       //Cliente(serviço, embarque, etc.).
                                                       //No arquivo de resposta para transações de venda, este
@@ -242,10 +383,10 @@ namespace MultiTef.TEF_GetPay
                                                       //referentes ao uso da solução, descontadas pela Rede
                                                       //Adquirente).
 
-            "004-000 = " + "0" + "\r" +              //0: Real
+            "004-000 = " + "0" + "\r\n" +              //0: Real
                                                      //1: Dólar americano
 
-            "011-000 = " + operacaoTef + "\r";       //Venda ou cancelamento (de acordo com o campo 000‐000):
+            "011-000 = " + operacaoTef + "\r\n";       //Venda ou cancelamento (de acordo com o campo 000‐000):
                                                      //10: Cartão de crédito – à vista
                                                      //11: Cartão de crédito – parcelado pelo Estabelecimento
                                                      //12: Cartão de crédito – parcelado pelo Emissor
@@ -267,15 +408,15 @@ namespace MultiTef.TEF_GetPay
                 operacaoTef == 40) { //As operações que tem divisão de pagamento deve usar o codigo 017 informar que poga o parcelamento e 018 que quantidade
 
                 conteudo +=
-                "017 - 000 = " + parcelamentoEstabelecimento + "\r" + //0: parcelado pelo Estabelecimento; 1: parcelado pelo Emissor.
+                "017 - 000 = " + parcelamentoEstabelecimento + "\r\n" + //0: parcelado pelo Estabelecimento; 1: parcelado pelo Emissor.
 
-                "018-000 = " + quantidadeParcela + "\r";            //Quantidade de parcelas, para transações parceladas.
+                "018-000 = " + quantidadeParcela + "\r\n";            //Quantidade de parcelas, para transações parceladas.
             }
 
             if (RegistroCertificacao != null)
             {
                 conteudo +=
-                    "706-000 = " + "3" + "\r" +                 //Soma dos seguintes valores, identificando as
+                    "706-000 = " + "3" + "\r\n" +                 //Soma dos seguintes valores, identificando as
                                                                 //funcionalidades suportadas pela Automação Comercial:
                                                                 //1: funcionalidade de troco(ver campo 708‐000)
                                                                 //2: funcionalidade de desconto(ver campo 709‐000) 
@@ -291,28 +432,28 @@ namespace MultiTef.TEF_GetPay
                                                                 //desconto.
 
 
-                    "716-000 = " + nomeSoftHouse + "\r" +        //Razão social da empresa responsável pelo desenvolvimento
+                    "716-000 = " + nomeSoftHouse + "\r\n" +        //Razão social da empresa responsável pelo desenvolvimento
                                                                  //da aplicação de Automação Comercial.
                                                                  //Exemplo: KND SISTEMAS LTDA.
 
-                    "717-000 = " + data + "\r" +                 //Data / hora registrada no cupom fiscal, no formato AAMMDDhhmmss
+                    "717-000 = " + data + "\r\n" +                 //Data / hora registrada no cupom fiscal, no formato AAMMDDhhmmss
                                                                  //Caso seja usada uma Impressora Fiscal, o preenchimento
                                                                  //deste campo é obrigatório para transações de venda.
 
-                    "733-000 = " + versaoSistema + "\r" +        //Valor fixo, identificando a versão deste documento
+                    "733-000 = " + versaoSistema + "\r\n" +        //Valor fixo, identificando a versão deste documento
                                                                  //implementada pela Automação Comercial(somente
                                                                  //números, por exemplo, 210 para “v2.10”).
 
-                    "735-000 = " + NomeDaAutomacao + "\r" +       //Nome da aplicação de Automação Comercial.
-                    "736-000 = " + VersaoDeAutomacao + "\r" +     //Versão da aplicação de Automação Comercial, conforme
+                    "735-000 = " + NomeDaAutomacao + "\r\n" +       //Nome da aplicação de Automação Comercial.
+                    "736-000 = " + VersaoDeAutomacao + "\r\n" +     //Versão da aplicação de Automação Comercial, conforme
                                                                   //nomenclatura utilizada pelo desenvolvedor.
-                    "738-000 = " + RegistroCertificacao + "\r";   //Registro de Certificação
+                    "738-000 = " + RegistroCertificacao + "\r\n";   //Registro de Certificação
             }
-            conteudo += "999-999 = 0\r";                           //Conteudo fixo: 0 (Zero)
+            conteudo += "999-999 = 0\r\n";                           //Conteudo fixo: 0 (Zero)
             return conteudo;
         }
 
-        private bool ConverterRespostaVenda(ArquivoTexto ArquivoStatusVenda, ArquivoTexto ArquivoRespostaVenda)
+        private bool ConverterdadosPagamento(ArquivoTexto ArquivoStatusVenda, ArquivoTexto ArquivodadosPagamento)
         {
             try
             {   
@@ -340,7 +481,7 @@ namespace MultiTef.TEF_GetPay
                     }
                 }
                 // Dividir a string em linhas
-                string[] respostaLinhas = ArquivoStatusVenda.Conteudo.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                string[] respostaLinhas = ArquivodadosPagamento.Conteudo.Split('\n', StringSplitOptions.RemoveEmptyEntries);
                 foreach (var linha in respostaLinhas)
                 {
                     // Dividir cada linha em partes usando o sinal de igual como delimitador
@@ -351,76 +492,85 @@ namespace MultiTef.TEF_GetPay
                         switch (partes[0].Trim())
                         {
                             case "000-000":
-                                respostaVenda.Comando = partes[1].Trim();
+                                dadosPagamento.Comando = partes[1].Trim();
                                 break;
                             case "001-000":
-                                respostaVenda.Identificacao = partes[1].Trim();
+                                dadosPagamento.Identificacao = partes[1].Trim();
                                 break;
                             case "002-000":
-                                respostaVenda.DocumentoFiscal = partes[1].Trim();
+                                dadosPagamento.DocumentoFiscal = partes[1].Trim();
                                 break;
                             case "003-000":
-                                respostaVenda.ValorTotal = partes[1].Trim();
+                                dadosPagamento.ValorTotal = partes[1].Trim();
                                 break;
                             case "004-000":
-                                respostaVenda.Moeda = partes[1].Trim();
+                                dadosPagamento.Moeda = partes[1].Trim();
                                 break;
                             case "009-000":
-                                respostaVenda.Status = partes[1].Trim();
+                                dadosPagamento.Status = partes[1].Trim();
                                 break;
                             case "010-000":
-                                respostaVenda.RedeAdquirente = partes[1].Trim();
+                                dadosPagamento.RedeAdquirente = partes[1].Trim();
                                 break;
                             case "011-000":
-                                respostaVenda.TipoTransacao = partes[1].Trim();
+                                dadosPagamento.TipoTransacao = partes[1].Trim();
                                 break;
                             case "012-000":
-                                respostaVenda.NSU = partes[1].Trim();
+                                dadosPagamento.NSU = partes[1].Trim();
                                 break;
                             case "013-000":
-                                respostaVenda.CodigoAutorizacao = partes[1].Trim();
+                                dadosPagamento.CodigoAutorizacao = partes[1].Trim();
                                 break;
                             case "022-000":
-                                respostaVenda.DataComprovante = partes[1].Trim();
+                                dadosPagamento.DataComprovante = partes[1].Trim();
                                 break;
                             case "023-000":
-                                respostaVenda.HoraComprovante = partes[1].Trim();
+                                dadosPagamento.HoraComprovante = partes[1].Trim();
                                 break;
                             case "027-000":
-                                respostaVenda.CodigoControle = partes[1].Trim();
+                                dadosPagamento.CodigoControle = partes[1].Trim();
                                 break;
                             case "030-000":
-                                respostaVenda.MensagemOperador = partes[1].Trim();
+                                dadosPagamento.MensagemOperador = partes[1].Trim();
                                 break;
                             case "040-000":
-                                respostaVenda.NomeCartãoAdm = partes[1].Trim();
+                                dadosPagamento.NomeCartãoAdm = partes[1].Trim();
                                 break;
                             case "707-000":
-                                respostaVenda.ValorOriginal = partes[1].Trim();
+                                dadosPagamento.ValorOriginal = partes[1].Trim();
                                 break;
                             case "708-000":
-                                respostaVenda.ValorTroco = partes[1].Trim();
+                                dadosPagamento.ValorTroco = partes[1].Trim();
                                 break;
                             case "718-000":
-                                respostaVenda.NumeroLogicoTerminal = partes[1].Trim();
+                                dadosPagamento.NumeroLogicoTerminal = partes[1].Trim();
                                 break;
                             case "719-000":
-                                respostaVenda.CodigoEstabelecimento = partes[1].Trim();
+                                dadosPagamento.CodigoEstabelecimento = partes[1].Trim();
                                 break;
                             case "729-000":
-                                respostaVenda.StatusConfirmacao = partes[1].Trim();
+                                dadosPagamento.StatusConfirmacao = partes[1].Trim();
                                 break;
                             case "730-000":
-                                respostaVenda.Operacao = partes[1].Trim();
+                                dadosPagamento.Operacao = partes[1].Trim();
                                 break;
                             case "731-000":
-                                respostaVenda.TipoDeCartao = partes[1].Trim();
+                                dadosPagamento.TipoDeCartao = partes[1].Trim();
                                 break;
                             case "732-000":
-                                respostaVenda.TipoDeFinanciamento = partes[1].Trim();
+                                dadosPagamento.TipoDeFinanciamento = partes[1].Trim();
+                                break;
+                            case "715-013":
+                                dadosPagamento.BandeiraNCartao = partes[1].Trim();
+                                break;
+                            case "715-018":
+                                dadosPagamento.TipoDeAutorizacao1 = partes[1].Trim();
+                                break;
+                            case "715-019":
+                                dadosPagamento.TipoDeAutorizacao2 = partes[1].Trim();
                                 break;
                             case "999-999":
-                                respostaVenda.RegistroFinalizador = partes[1].Trim();
+                                dadosPagamento.RegistroFinalizador = partes[1].Trim();
                                 break;
                         }
                     }
@@ -433,19 +583,94 @@ namespace MultiTef.TEF_GetPay
                 return false;
             }
         }
+        private bool ConverterRespostaConfirmacao(ArquivoTexto ArquivoStatusConfirmacao, ArquivoTexto ArquivoRespostaConfirmacao)
+        {
+            try
+            {
+                // Dividir a string em linhas
+                string[] statusLinhas = ArquivoStatusConfirmacao.Conteudo.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                foreach (var linha in statusLinhas)
+                {
+                    // Dividir cada linha em partes usando o sinal de igual como delimitador
+                    string[] partes = linha.Split('=');
 
-        private string ValidarRespota(ModeloPagamento pagamento)
+                    if (partes.Length == 2)
+                    {
+                        switch (partes[0].Trim())
+                        {
+                            case "000-000":
+                                statusVenda.Comando = partes[1].Trim();
+                                break;
+                            case "001-000":
+                                statusVenda.Identificacao = partes[1].Trim();
+                                break;
+                            case "999-999":
+                                statusVenda.RegistroFinalizador = partes[1].Trim();
+                                break;
+                        }
+                    }
+                }
+                // Dividir a string em linhas
+                string[] respostaLinhas = ArquivoRespostaConfirmacao.Conteudo.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                foreach (var linha in respostaLinhas)
+                {
+                    // Dividir cada linha em partes usando o sinal de igual como delimitador
+                    string[] partes = linha.Split('=');
+
+                    if (partes.Length == 2)
+                    {
+                        switch (partes[0].Trim())
+                        {
+                            case "000-000":
+                                respostaConfirmacao.Comando = partes[1].Trim();
+                                break;
+                            case "001-000":
+                                respostaConfirmacao.Identificacao = partes[1].Trim();
+                                break;
+                            case "002-000":
+                                respostaConfirmacao.DocumentoFiscal = partes[1].Trim();
+                                break;
+                            case "010-000":
+                                respostaConfirmacao.RedeAdquirente = partes[1].Trim();
+                                break;
+                            case "027-000":
+                                respostaConfirmacao.CodigoControle = partes[1].Trim();
+                                break;
+                            case "733-000":
+                                respostaConfirmacao.VersaoInterface = partes[1].Trim();
+                                break;
+                            case "735-000":
+                                respostaConfirmacao.NomeAutomacao = partes[1].Trim();
+                                break;
+                            case "736-000":
+                                respostaConfirmacao.VersaoAutomacao = partes[1].Trim();
+                                break;
+                            case "738-000":
+                                respostaConfirmacao.RegistroCertificacao = partes[1].Trim();
+                                break;
+                            case "999-999":
+                                respostaConfirmacao.RegistroFinalizador = partes[1].Trim();
+                                break;
+                        }
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
+        private string ValidarConfirmacao(ModeloPagamento pagamento)
         {
             //Verificar status da resposta bate com o valor Identificação Com o Numero do Documento
             int identificacaoStatus = Convert.ToInt32(statusVenda.Identificacao);
-            int identificacaoResposta = Convert.ToInt32(respostaVenda.Identificacao);
+            int identificacaoResposta = Convert.ToInt32(dadosPagamento.Identificacao);
             if (pagamento.NumeroDoc == identificacaoStatus && identificacaoResposta == identificacaoStatus)
             {
                 //TODO: Implementar verificação:
-                //      Pelo Valor
-                //      Mensagem do Operador
-                //      Quantidade de parcela
-                //      Tipo de Operacao
+                //      Verificar o Comando: 000-000
 
                 return "ok";
             }
@@ -455,29 +680,68 @@ namespace MultiTef.TEF_GetPay
                 return "erro";
             }
         }
-
-        private void ConfirmarPagamento(ModeloPagamento pagamento)
+        private bool ConfirmarPagamento(ModeloPagamento pagamento)
         {
-            //Cria o Arquivo de confirmação de pagamento
-            string conteudo = "000‐000 = CNF \n" +
-                                "001‐000 = " + "\n" +
-                                "002‐000 = " + "\n" +
-                                "010‐000 = " + "\n" +
-                                "027‐000 = " + "\n" +
-                                "733‐000 = " + "\n" +
-                                "735‐000 = " + "\n" +
-                                "736‐000 = " + "\n" +
-                                "738‐000 = " + "\n" +
-                                "999‐999 = 0";
-            ArquivoTexto arquivo = new ArquivoTexto
+            try
             {
-                NomeArquivo = pagamento.NomeArquivo,
-                CaminhoArquivo = pagamento.CaminhoArquivo + "/Req",
-                ExtensaoArquivo = pagamento.ExtensaoArquivo,
-                Conteudo = conteudo
-            };
-            ArquivoTXT Arquivo = new ArquivoTXT();
-            var result = Arquivo.CriarArquivo(arquivo);
+                //Cria o Arquivo de confirmação de pagamento
+                string conteudo = "000-000 = CNF \r\n" +                                  //Confirma a última Transação realizada
+                                    "001-000 = " + dadosPagamento.Identificacao + "\r\n" +  //Identificação
+                                    "002-000 = " + dadosPagamento.DocumentoFiscal+"\r\n" +  //Documento Fiscal
+                                    "010-000 = " + dadosPagamento.RedeAdquirente+"\r\n" +   //Rede Adquirente
+                                    "027-000 = " + dadosPagamento.CodigoControle+"\r\n" +   //Código de controle
+                                                                                            //Estes campos não são obrigatorios
+                                                                                            //"733-000 = " + dadosPagamento."\r\n" + //Versão Da interface
+                                                                                            //"735-000 = " + dadosPagamento"\r\n" + //Nome Da Automação
+                                                                                            //"736-000 = " + dadosPagamento"\r\n" + //Versão De Automação
+                                                                                            //"738-000 = " + dadosPagamento"\r\n" + //Registro de Certificação
+                                    "999-999 = 0";                                          //Registro Finalizador
+                ArquivoTexto arquivo = new ArquivoTexto
+                {
+                    NomeArquivo = pagamento.NomeArquivo,
+                    CaminhoArquivo = pagamento.CaminhoArquivo + "/Req",
+                    ExtensaoArquivo = pagamento.ExtensaoArquivo,
+                    Conteudo = conteudo
+                };
+                ArquivoTXT Arquivo = new ArquivoTXT();
+                var result = Arquivo.CriarArquivo(arquivo);
+
+                return true;
+            }catch (Exception ex) {
+                return false;
+            }            
+        }
+        public bool LerArquivoConfirmacao(string caminhoArquivo)
+        {
+            try
+            {
+                //Ler arquivo status de venda
+                ArquivoTexto ArquivoStatusConfirmacao = new ArquivoTexto
+                {
+                    NomeArquivo = "intpos",
+                    CaminhoArquivo = caminhoArquivo + "/Resp",
+                    ExtensaoArquivo = "sts",
+                };
+                ArquivoTXT arquivo = new ArquivoTXT();
+                ArquivoStatusConfirmacao.Conteudo = arquivo.LerArquivo(ArquivoStatusConfirmacao);
+                ArquivoTexto ArquivoRespostaConfirmacao = new ArquivoTexto
+                {
+                    NomeArquivo = "intpos",
+                    CaminhoArquivo = caminhoArquivo + "/Req",
+                    ExtensaoArquivo = "001",
+                };
+                ArquivoRespostaConfirmacao.Conteudo = arquivo.LerArquivo(ArquivoRespostaConfirmacao);
+
+                if (ConverterRespostaConfirmacao(ArquivoRespostaConfirmacao, ArquivoRespostaConfirmacao))
+                {
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
         }
 
         //Modelo de Solicitação de Venda
@@ -517,6 +781,7 @@ namespace MultiTef.TEF_GetPay
         //023‐000 = 191002
         //027‐000 = 11011719100219100205783
         //028‐000 = 18
+
         //029‐001 = " *** DEMONSTRACAO GERENCIADOR PADRÃO ***"
         //029‐002 = " COMPROVANTE DE TEF"
         //029‐003 = " "
@@ -535,6 +800,7 @@ namespace MultiTef.TEF_GetPay
         //029‐016 = " "
         //029‐017 = " TRANSACAO AUTORIZADA MEDIANTE"
         //029‐018 = " USO DA SENHA PESSOAL."
+
         //030‐000 = AUTORIZADA 022167
         //040‐000 = DEMOCARD
         //707‐000 = 10000

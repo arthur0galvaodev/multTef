@@ -11,6 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="TEF_Auttar\" />
+    <Folder Include="TEF_PayGO\" />
     <Folder Include="TEF_Elgin\" />
   </ItemGroup>
 

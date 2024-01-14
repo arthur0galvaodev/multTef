@@ -41,11 +41,12 @@ namespace MultiTef.Models
     }
     public enum TipoTefHouse
     {
-        [Display(Name = "Elgin", Description = "Elgin")] Elgin = 1,
-        [Display(Name = "GetPay", Description = "GetPay")] GetPay = 2,
-        [Display(Name = "Paygo", Description = "Paygo")] Paygo = 3,
-        [Display(Name = "Sitef", Description = "Sitef")] Sitef = 4,
-        [Display(Name = "Scoope", Description = "Scoope")] Scoope = 5,
+        [Display(Name = "ElginPassivo", Description = "Elgin Passivo")] ElginPassivo = 1,
+        [Display(Name = "ElginAtivo", Description = "Elgin Ativo")] ElginAtivo = 2,
+        [Display(Name = "GetCardPassivo", Description = "GetCad Passivo")] GetPayPassivo = 3,
+        [Display(Name = "GetCardAtivo", Description = "GetCad Ativo")] GetPayAtivo = 4,
+        [Display(Name = "PayGo", Description = "PayGo")] PayGo = 5,
+        [Display(Name = "Auttar", Description = "Auttar")] Auttar = 6,
     }
     public enum TipoTransacaoTef
     {

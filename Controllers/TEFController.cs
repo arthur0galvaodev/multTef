@@ -11,6 +11,8 @@ namespace MultiTef.Controllers
     public class TEFController : ControllerBase
     {
         [HttpPost]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MultiTef.Models.Pagamento))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public IActionResult NovaVenda(ModeloPagamento pagamento)
         {
             if(pagamento.TefHouse == TipoTefHouse.GetPay)
@@ -26,15 +28,5 @@ namespace MultiTef.Controllers
             }
             
         }
-        //[HttpPost]
-        //public IActionResult CancelarVenda(ArquivoTexto arquivo)
-        //{
-        //    return Ok(result);
-        //}
-        //[HttpPost]
-        //public IActionResult ServicoADM(ArquivoTexto arquivo)
-        //{
-        //    return Ok(result);
-        //}
     }
 }
