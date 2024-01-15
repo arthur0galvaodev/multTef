@@ -37,6 +37,11 @@ namespace MultiTef.TEF_GetCard
         public JsonResult RealizarVenda(ModeloPagamento pagamento)
         {
             //Realizar Venda
+            //Para não haver erro de leitura de arquivo que ficou anterior deve excluir eles se existirem
+            LimparArquivosExistentes(pagamento.CaminhoArquivo);
+            
+            //Inicia processo de venda;
+
             //1º Criar conteudo do arquivo e Criar arquivo na pasta
             bool ArquivoIniciar = CriarArvivoComunicacao(pagamento); //TODO: antes de criar um arquivo novo verificar se existe um anterior, se existir excluir ele antes
             //2º Ler arquivo de retorno e Validar retorno
@@ -55,12 +60,12 @@ namespace MultiTef.TEF_GetCard
                             //6º Ler Arquivo de Status de Venda
                             if (ConfirmarPagamento(pagamento))
                             {
-                                //Ler Arquivo
-                                if (VerificarExisteArquivo(pagamento, 3))
+                                //Ler Arquivo Confirmacao
+                                if (VerificarExisteArquivoConfirmacao(pagamento, 3))
                                 {
                                     if (LerArquivoConfirmacao(pagamento.CaminhoArquivo))
                                     {//Validar Resposta
-                                        if (ValidarConfirmacao(pagamento) == "ok")
+                                        if (ValidarConfirmacao(pagamento) == true)
                                         {
                                             //7º Retonar dados da venda para o sistema
                                             dadosPagamento.Erro = "0000"; 
@@ -68,7 +73,6 @@ namespace MultiTef.TEF_GetCard
                                         }
                                         else
                                         {
-                                            //TODO: Implementar Erro
                                             dadosPagamento.MensagemOperador = menssagemErro;
                                             dadosPagamento.Erro = "0008";
                                             return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
@@ -76,7 +80,6 @@ namespace MultiTef.TEF_GetCard
                                     }
                                     else
                                     {
-                                        //TODO: Implementar Erro
                                         dadosPagamento.MensagemOperador = menssagemErro;
                                         dadosPagamento.Erro = "0007";
                                         return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
@@ -84,7 +87,6 @@ namespace MultiTef.TEF_GetCard
                                 }
                                 else
                                 {
-                                    //TODO: Implementar Erro
                                     dadosPagamento.MensagemOperador = menssagemErro;
                                     dadosPagamento.Erro = "0006";
                                     return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
@@ -92,7 +94,6 @@ namespace MultiTef.TEF_GetCard
                             }
                             else
                             {
-                                //TODO: Implementar Erro
                                 dadosPagamento.MensagemOperador = menssagemErro;
                                 dadosPagamento.Erro = "0005";
                                 return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
@@ -100,7 +101,6 @@ namespace MultiTef.TEF_GetCard
                         }
                         else
                         {
-                            //TODO: Implementar Erro
                             dadosPagamento.MensagemOperador = menssagemErro;
                             dadosPagamento.Erro = "0004";
                             return new JsonResult(JsonSerializer.Serialize(dadosPagamento));
@@ -174,18 +174,51 @@ namespace MultiTef.TEF_GetCard
         {
             try
             {
-
-                string caminho = pagamento.CaminhoArquivo + "/Resp";
-                string nomeArquivo = "intpos.001";
+                string caminho = pagamento.CaminhoArquivo + "/Resp"; //caminho do arquivo de status e resposta
+                string nomeArquivoSTS = "intpos.sts";//caminho do arquivo de status
+                string nomeArquivo001 = "intpos.001";//caminho do arquivo de resposta
                 TimeSpan tempoLimite = TimeSpan.FromMinutes(minutos);
                 DateTime tempoInicio = DateTime.Now;
                 while (DateTime.Now - tempoInicio < tempoLimite)
                 {
-                    string caminhoCompleto = Path.Combine(caminho, nomeArquivo);
-
-                    if (System.IO.File.Exists(caminhoCompleto))
+                    string caminhoCompletoSTS = Path.Combine(caminho, nomeArquivoSTS);
+                    string caminhoCompleto001 = Path.Combine(caminho, nomeArquivo001);
+                    if (System.IO.File.Exists(caminhoCompletoSTS))
                     {
-                        // Arquivo encontrado
+                        if (System.IO.File.Exists(caminhoCompleto001))
+                        {
+                            // Arquivos encontrados
+                            return true;
+                        }                            
+                    }
+
+                    // Aguardar um curto período antes de verificar novamente
+                    Thread.Sleep(1000); // Aguarda 1 segundo
+                }
+
+                // Tempo limite atingido, o arquivo não foi encontrado
+                menssagemErro = "Tempo limite atingido, resposta não foi encontrada!";
+                return false;
+            }
+            catch (Exception ex)
+            {
+                menssagemErro = "Erro: Sem resposta " + ex.Message;
+                return false;
+            }
+        }
+        private bool VerificarExisteArquivoConfirmacao(ModeloPagamento pagamento, int minutos)
+        {
+            try
+            {
+                string caminho = pagamento.CaminhoArquivo + "/Resp"; //caminho do arquivo de status e resposta
+                string nomeArquivoSTS = "intpos.sts";//caminho do arquivo de status
+                TimeSpan tempoLimite = TimeSpan.FromMinutes(minutos);
+                DateTime tempoInicio = DateTime.Now;
+                while (DateTime.Now - tempoInicio < tempoLimite)
+                {
+                    string caminhoCompletoSTS = Path.Combine(caminho, nomeArquivoSTS);
+                    if (System.IO.File.Exists(caminhoCompletoSTS))
+                    {   // Arquivos encontrados
                         return true;
                     }
 
@@ -258,6 +291,11 @@ namespace MultiTef.TEF_GetCard
                     if(dadosPagamento.Comando != "CRT")
                     {
                         menssagemErro = "Codigo de comando invalido!";
+                        return false;
+                    }
+                    if(dadosPagamento.MensagemOperador == "")
+                    {
+                        menssagemErro = "OPERAÇÃO CANCELADA";
                         return false;
                     }
                     if((statusVenda.Identificacao != Convert.ToString(pagamento.NumeroDoc))||( dadosPagamento.Identificacao != Convert.ToString(pagamento.NumeroDoc)))
@@ -344,7 +382,6 @@ namespace MultiTef.TEF_GetCard
                 return operacao;
             }
         }
-
         private string CriarConteudoSolicitacaoPagamento(   int indentificacao, 
                                                             int documentoFiscal,
                                                             int operacaoTef,
@@ -534,7 +571,7 @@ namespace MultiTef.TEF_GetCard
                                 dadosPagamento.MensagemOperador = partes[1].Trim();
                                 break;
                             case "040-000":
-                                dadosPagamento.NomeCartãoAdm = partes[1].Trim();
+                                dadosPagamento.NomeCartaoAdm = partes[1].Trim();
                                 break;
                             case "707-000":
                                 dadosPagamento.ValorOriginal = partes[1].Trim();
@@ -560,13 +597,13 @@ namespace MultiTef.TEF_GetCard
                             case "732-000":
                                 dadosPagamento.TipoDeFinanciamento = partes[1].Trim();
                                 break;
-                            case "715-013":
+                            case "715-009":
                                 dadosPagamento.BandeiraNCartao = partes[1].Trim();
                                 break;
-                            case "715-018":
+                            case "715-016":
                                 dadosPagamento.TipoDeAutorizacao1 = partes[1].Trim();
                                 break;
-                            case "715-019":
+                            case "715-017":
                                 dadosPagamento.TipoDeAutorizacao2 = partes[1].Trim();
                                 break;
                             case "999-999":
@@ -583,7 +620,7 @@ namespace MultiTef.TEF_GetCard
                 return false;
             }
         }
-        private bool ConverterRespostaConfirmacao(ArquivoTexto ArquivoStatusConfirmacao, ArquivoTexto ArquivoRespostaConfirmacao)
+        private bool ConverterRespostaConfirmacao(ArquivoTexto ArquivoStatusConfirmacao)
         {
             try
             {
@@ -599,57 +636,13 @@ namespace MultiTef.TEF_GetCard
                         switch (partes[0].Trim())
                         {
                             case "000-000":
-                                statusVenda.Comando = partes[1].Trim();
+                                statusConfirmacao.Comando = partes[1].Trim();
                                 break;
                             case "001-000":
-                                statusVenda.Identificacao = partes[1].Trim();
+                                statusConfirmacao.Identificacao = partes[1].Trim();
                                 break;
                             case "999-999":
-                                statusVenda.RegistroFinalizador = partes[1].Trim();
-                                break;
-                        }
-                    }
-                }
-                // Dividir a string em linhas
-                string[] respostaLinhas = ArquivoRespostaConfirmacao.Conteudo.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-                foreach (var linha in respostaLinhas)
-                {
-                    // Dividir cada linha em partes usando o sinal de igual como delimitador
-                    string[] partes = linha.Split('=');
-
-                    if (partes.Length == 2)
-                    {
-                        switch (partes[0].Trim())
-                        {
-                            case "000-000":
-                                respostaConfirmacao.Comando = partes[1].Trim();
-                                break;
-                            case "001-000":
-                                respostaConfirmacao.Identificacao = partes[1].Trim();
-                                break;
-                            case "002-000":
-                                respostaConfirmacao.DocumentoFiscal = partes[1].Trim();
-                                break;
-                            case "010-000":
-                                respostaConfirmacao.RedeAdquirente = partes[1].Trim();
-                                break;
-                            case "027-000":
-                                respostaConfirmacao.CodigoControle = partes[1].Trim();
-                                break;
-                            case "733-000":
-                                respostaConfirmacao.VersaoInterface = partes[1].Trim();
-                                break;
-                            case "735-000":
-                                respostaConfirmacao.NomeAutomacao = partes[1].Trim();
-                                break;
-                            case "736-000":
-                                respostaConfirmacao.VersaoAutomacao = partes[1].Trim();
-                                break;
-                            case "738-000":
-                                respostaConfirmacao.RegistroCertificacao = partes[1].Trim();
-                                break;
-                            case "999-999":
-                                respostaConfirmacao.RegistroFinalizador = partes[1].Trim();
+                                statusConfirmacao.RegistroFinalizador = partes[1].Trim();
                                 break;
                         }
                     }
@@ -662,7 +655,7 @@ namespace MultiTef.TEF_GetCard
                 return false;
             }
         }
-        private string ValidarConfirmacao(ModeloPagamento pagamento)
+        private bool ValidarConfirmacao(ModeloPagamento pagamento)
         {
             //Verificar status da resposta bate com o valor Identificação Com o Numero do Documento
             int identificacaoStatus = Convert.ToInt32(statusVenda.Identificacao);
@@ -670,14 +663,23 @@ namespace MultiTef.TEF_GetCard
             if (pagamento.NumeroDoc == identificacaoStatus && identificacaoResposta == identificacaoStatus)
             {
                 //TODO: Implementar verificação:
-                //      Verificar o Comando: 000-000
-
-                return "ok";
+                //Analisar mais opções a ser implementados
+                if (statusConfirmacao.Comando != "CNF")
+                {
+                    menssagemErro = "Codigo de comando invalido!";
+                    return false;
+                }
+                if ((statusConfirmacao.Identificacao != Convert.ToString(pagamento.NumeroDoc)) || (statusConfirmacao.Identificacao != Convert.ToString(pagamento.NumeroDoc)))
+                {
+                    menssagemErro = "Codigo de Identificação invalido!\n" + dadosPagamento.MensagemOperador;
+                    return false;
+                }
+                return true;
             }
             else
             {
-                //TODO Implementar
-                return "erro";
+                menssagemErro = "Erro ao validar respota entrar em contato com o suporte";
+                return false;
             }
         }
         private bool ConfirmarPagamento(ModeloPagamento pagamento)
@@ -711,7 +713,7 @@ namespace MultiTef.TEF_GetCard
                 return false;
             }            
         }
-        public bool LerArquivoConfirmacao(string caminhoArquivo)
+        private bool LerArquivoConfirmacao(string caminhoArquivo)
         {
             try
             {
@@ -724,15 +726,8 @@ namespace MultiTef.TEF_GetCard
                 };
                 ArquivoTXT arquivo = new ArquivoTXT();
                 ArquivoStatusConfirmacao.Conteudo = arquivo.LerArquivo(ArquivoStatusConfirmacao);
-                ArquivoTexto ArquivoRespostaConfirmacao = new ArquivoTexto
-                {
-                    NomeArquivo = "intpos",
-                    CaminhoArquivo = caminhoArquivo + "/Req",
-                    ExtensaoArquivo = "001",
-                };
-                ArquivoRespostaConfirmacao.Conteudo = arquivo.LerArquivo(ArquivoRespostaConfirmacao);
-
-                if (ConverterRespostaConfirmacao(ArquivoRespostaConfirmacao, ArquivoRespostaConfirmacao))
+                
+                if (ConverterRespostaConfirmacao(ArquivoStatusConfirmacao))
                 {
                     return true;
                 }
@@ -743,134 +738,34 @@ namespace MultiTef.TEF_GetCard
                 return false;
             }
         }
+        private void LimparArquivosExistentes(string caminho)
+        {
+            // Especifica o caminho completo do arquivo que você deseja verificar e excluir
+            string resp001 = caminho + "/resp/intpos.001";
+            string respSTS = caminho + "/resp/intpos.sts";
+            string req001 = caminho + "/req/intpos.001";
+            string reqSTS = caminho + "/req/intpos.sts";
 
-        //Modelo de Solicitação de Venda
-        //000‐000 = CRT
-        //001‐000 = 34430576
-        //002‐000 = 223546
-        //003‐000 = 10000
-        //004‐000 = 0
-        //706‐000 = 3
-        //716‐000 = Gerenciador Padrão.
-        //717‐000 = 11011719053
-        //733‐000 = 210
-        //735‐000 = KiWi
-        //736‐000 = v1, 14, 0, 0
-        //738‐000 = G45J35G3JH45B435
-        //999‐999 = 0
+            // Verifica se os arquivos existes
+            if (File.Exists(resp001))
+            {
+                File.Delete(resp001);
+            }
+            if (File.Exists(respSTS))
+            {
+                File.Delete(respSTS);
+            }
+            if (File.Exists(req001))
+            {
+                File.Delete(req001);
+            }
+            if (File.Exists(reqSTS))
+            {
+                File.Delete(reqSTS);
+            }
 
-        //Status de venda(Resp\intpos.sts)
-        //000‐000 = CRT
-        //001‐000 = 34430576
-        //999‐999 = 0
 
-        //Resposta de venda(Resp\intpos.001)
-        //000‐000 = CRT
-        //001‐000 = 34430576
-        //002‐000 = 223546
-        //003‐000 = 12000
-        //004‐000 = 0
-        //009‐000 = 0
-        //010‐000 = NOVAREDE
-        //011‐000 = 20
-        //012‐000 = 19100205783
-        //013‐000 = 022167
-        //015‐000 = 1701191002
-        //016‐000 = 1701191002
-        //022‐000 = 17012011
-        //023‐000 = 191002
-        //027‐000 = 11011719100219100205783
-        //028‐000 = 18
-
-        //029‐001 = " *** DEMONSTRACAO GERENCIADOR PADRÃO ***"
-        //029‐002 = " COMPROVANTE DE TEF"
-        //029‐003 = " "
-        //029‐004 = " ESTABELECIMENTO DE TESTE"
-        //029‐005 = " 823982346832235/03876463"
-        //029‐006 = " "
-        //029‐007 = " 17/01/2011 19:10:02"
-        //029‐008 = " REF.FISCAL:223546"
-        //029‐009 = " DOC:026982 AUTORIZ:022167"
-        //029‐010 = " REF.HOST:19100205783"
-        //029‐011 = " "
-        //029‐012 = " DEMOCARD ************1111"
-        //029‐013 = " VENDA DEBITO A VISTA"
-        //029‐014 = " VALOR FINAL: R$ 120,00"
-        //029‐015 = " SAQUE: R$ 20,00"
-        //029‐016 = " "
-        //029‐017 = " TRANSACAO AUTORIZADA MEDIANTE"
-        //029‐018 = " USO DA SENHA PESSOAL."
-
-        //030‐000 = AUTORIZADA 022167
-        //040‐000 = DEMOCARD
-        //707‐000 = 10000
-        //708‐000 = 2000
-        //710‐000 = 4
-        //711‐001 = "DEMOCARD ************1111"
-        //711‐002 = "POS:03876463 DOC:026982 AUTORIZ:022167"
-        //711‐003 = "VENDA DEBITO A VISTA"
-        //711‐004 = "VALOR FINAL: R$ 120,00"
-        //712‐000 = 16
-        //713‐001 = " *** DEMONSTRACAO GERENCIADOR PADRÃO ***"
-        //713‐002 = " COMPROVANTE DE TEF"
-        //713‐003 = " VIA: CLIENTE"
-        //713‐004 = " "
-        //713‐005 = " ESTABELECIMENTO DE TESTE"
-        //713‐006 = " 823982346832235/03876463"
-        //713‐007 = " "
-        //713‐008 = " 17/01/2011 19:10:02"
-        //713‐009 = " REF.FISCAL:34430576"
-        //713‐010 = " DOC:026982 AUTORIZ:022167"
-        //713‐011 = " REF.HOST:19100205783"
-        //713‐012 = " "
-        //713‐013 = " DEMOCARD ************1111"
-        //713‐014 = " VENDA DEBITO A VISTA"
-        //713‐015 = " VALOR FINAL: R$ 120,00"
-        //713‐016 = " SAQUE: R$ 20,00"
-        //714‐000 = 19
-        //715‐001 = " *** DEMONSTRACAO GERENCIADOR PADRÃO ***"
-        //715‐002 = " COMPROVANTE DE TEF"
-        //715‐003 = " VIA: ESTABELECIMENTO"
-        //715‐004 = " "
-        //715‐005 = " ESTABELECIMENTO DE TESTE"
-        //715‐006 = " 823982346832235/03876463"
-        //715‐007 = " "
-        //715‐008 = " 17/01/2011 19:10:02"
-        //715‐009 = " REF.FISCAL:34430576"
-        //715‐010 = " DOC:026982 AUTORIZ:022167"
-        //715‐011 = " REF.HOST:19100205783"
-        //715‐012 = " "
-        //715‐013 = " DEMOCARD ************1111"
-        //715‐014 = " VENDA DEBITO A VISTA"
-        //715‐015 = " VALOR FINAL: R$ 120,00"
-        //715‐016 = " SAQUE: R$ 20,00"
-        //715‐017 = " "
-        //715‐018 = " TRANSACAO AUTORIZADA MEDIANTE"
-        //715‐019 = " USO DA SENHA PESSOAL."
-        //718‐000 = 03876463
-        //719‐000 = 823982346832235
-        //729‐000 = 2
-        //730‐000 = 1
-        //731‐000 = 2
-        //732‐000 = 1
-        //737‐000 = 3
-        //999‐999 = 0
-
-        //Confirmação de venda(Req\intpos.001)
-        //000‐000 = CNF
-        //001‐000 = 34430576
-        //002‐000 = 223546
-        //010‐000 = NOVAREDE
-        //027‐000 = 11011719100219100205783
-        //733‐000 = 210
-        //735‐000 = KiWi
-        //736‐000 = v1, 14, 0, 0
-        //738‐000 = G45J35G3JH45B435
-        //999‐999 = 0
-
-        //Status de confirmação(Resp\intpos.sts)
-        //000‐000 = CNF
-        //001‐000 = 34430576
-        //999‐999 = 0
+        }
+        
     }
 }

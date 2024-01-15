@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using MultiTef.Library;
 using MultiTef.Models;
+using MultiTef.TEF_GetCard;
 using MultiTef.TEF_GetPay;
 
 namespace MultiTef.Controllers
@@ -15,12 +16,32 @@ namespace MultiTef.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public IActionResult NovaVenda(ModeloPagamento pagamento)
         {
-            if(pagamento.TefHouse == TipoTefHouse.GetPay)
+
+            if(pagamento.TefHouse == TipoTefHouse.ElginPassivo)
             {
-                GetPay getPay = new GetPay();
-                //Validar os Dados do Modelo de Pagamento.
+                return Ok("");
+            }
+            else if (pagamento.TefHouse == TipoTefHouse.ElginAtivo)
+            {
+                return Ok("");
+            }
+            else if(pagamento.TefHouse == TipoTefHouse.GetCardPassivo)
+            {
+                GetCardPassivo getPay = new GetCardPassivo();
                 var result = getPay.RealizarVenda(pagamento);
                 return Ok(result);
+            }
+            else if (pagamento.TefHouse == TipoTefHouse.GetCardAtivo)
+            {
+                return Ok("");
+            }
+            else if (pagamento.TefHouse == TipoTefHouse.PayGo)
+            {
+                return Ok("");
+            }
+            else if (pagamento.TefHouse == TipoTefHouse.Auttar)
+            {
+                return Ok("");
             }
             else
             {

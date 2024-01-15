@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using MultiTef.Models;
 using MultiTef.Library;
-using MultiTef.TEF_GetPay;
+using MultiTef.TEF_GetCard;
 
 namespace MultiTef.Controllers
 {
@@ -23,7 +23,7 @@ namespace MultiTef.Controllers
             //ArquivoTXT Arquivo = new ArquivoTXT();
             //var result = Arquivo.LerArquivo(arquivo);
 
-            GetPay get = new GetPay();
+            GetCardPassivo get = new GetCardPassivo();
             get.LerArquivoRetorno(arquivo.CaminhoArquivo);
             return Ok("");
         }

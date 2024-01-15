@@ -43,8 +43,8 @@ namespace MultiTef.Models
     {
         [Display(Name = "ElginPassivo", Description = "Elgin Passivo")] ElginPassivo = 1,
         [Display(Name = "ElginAtivo", Description = "Elgin Ativo")] ElginAtivo = 2,
-        [Display(Name = "GetCardPassivo", Description = "GetCad Passivo")] GetPayPassivo = 3,
-        [Display(Name = "GetCardAtivo", Description = "GetCad Ativo")] GetPayAtivo = 4,
+        [Display(Name = "GetCardPassivo", Description = "GetCad Passivo")] GetCardPassivo = 3,
+        [Display(Name = "GetCardAtivo", Description = "GetCad Ativo")] GetCardAtivo = 4,
         [Display(Name = "PayGo", Description = "PayGo")] PayGo = 5,
         [Display(Name = "Auttar", Description = "Auttar")] Auttar = 6,
     }

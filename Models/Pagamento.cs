@@ -30,7 +30,7 @@
         //027‐000
         public string MensagemOperador { get; set; }
         //030‐000
-        public string NomeCartãoAdm { get; set; }
+        public string NomeCartaoAdm { get; set; }
         //040‐000
         public string ValorOriginal { get; set; }
         //707‐000
