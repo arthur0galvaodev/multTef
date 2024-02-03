@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MultiTef")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7ef9fc4e5c68a7734f624ef8fa64645b6399c4b3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b345cc2094a6eb18fcfb2649084395c55b3d428e")]
 [assembly: System.Reflection.AssemblyProductAttribute("MultiTef")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MultiTef")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
